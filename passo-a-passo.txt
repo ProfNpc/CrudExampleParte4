@@ -1,0 +1,282 @@
+
+1 - Adicionar a dependência do Spring Data Jpa ao pom.xml
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+
+2 - Adicionar a dependência do driver do banco de dados relacional h2, que é um banco de dados "embarcado", em inglês "embedded", isto é, que roda dentro da JVM pois foi escrito em Java.
+
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		
+3 - Adicionar a dependência do driver do SQL Server no arquivo pom.xml
+
+		<dependency>
+			<groupId>com.microsoft.sqlserver</groupId>
+			<artifactId>mssql-jdbc</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		
+4 - No arquivo application.properties adicione as linhas abaixo
+
+Se H2
+	
+#Indica que a informacao sera armazenada em memoria(padrao)
+#spring.datasource.url=jdbc:h2:mem:cruddb
+#Indica que a informacao sera armazenada em D:/cruddb
+spring.datasource.url=jdbc:h2:file:D:/cruddb
+spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=123456
+
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+
+Se SQl Server
+
+spring.datasource.driverClassName=com.microsoft.sqlserver.jdbc.SQLServerDriver
+spring.datasource.url= jdbc:sqlserver://localhost;databaseName=cruddb;encrypt=true;trustServerCertificate=true;
+#spring.datasource.url= jdbc:sqlserver://localhost;databaseName=cruddb;
+spring.datasource.username=sa
+spring.datasource.password=@ITB123456
+
+spring.jpa.database-platform=org.hibernate.dialect.SQLServer2012Dialect
+
+Para o H2 e SQL Server
+
+#Indica que as tabelas serao criadas caso nao existam ou caso tenham sua estrutura alterada
+spring.jpa.hibernate.ddl-auto= update
+#Para mostrar as consultas no console
+spring.jpa.properties.hibernate.show_sql=true
+spring.jpa.properties.hibernate.format_sql=true
+
+5 - Adicionar o arquivo "produto-nao-encontrado.html"
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Detalhe Produto</title>
+		<meta charset="utf-8">
+	</head>
+	<body>
+		<h1>Produto não encontrado.</h1>
+		<a th:href="@{/produto/list}">Lista</a>
+	</body>
+</html>
+
+
+6 - Adicinar o arquivo "detalhe-produto.html"
+
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Detalhe Produto</title>
+		<meta charset="utf-8">
+	</head>
+	<body>
+		<h1>Detalhe Produto</h1>
+		<table border="1">
+			<tr>
+				<th>ID:</th>
+				<td>
+					<span th:text="${produto.id}"></span>
+				</td>
+			</tr>
+			<tr>
+				<th>Nome:</th>
+				<td>
+					<span th:text="${produto.nome}"></span>
+				</td>
+			</tr>
+			<tr>
+				<th>Descrição:</th>
+				<td>
+					<span th:text="${produto.descricao}"></span>
+				</td>
+			</tr>
+			<tr>
+				<th>Preço:</th>
+				<td>
+					<span th:text="${produto.preco}"></span>
+				</td>
+			</tr>
+		</table>
+		<a th:href="@{/produto/list}">Lista</a>
+	</body>
+</html>
+
+
+7 - No arquivo "novo-produto.html", adicionar em cada <input> a propriedade "th:value" como em 
+
+<input type="hidden" name="id" th:value="${produto.id}">
+e
+<input type="text" name="nome" th:value="${produto.nome}">
+e
+<input type="text" name="descricao" th:value="${produto.descricao}">
+e
+<input type="text" name="preco" th:value="${produto.preco}">
+
+8 - Crie um pacote "br.com.belval.crud.repository"
+
+9 - Dentro do package criado anteriormente, crie uma interface ProdutoRepository(ProdutoRepository.java) com o seguinte conteúdo
+
+package br.com.belval.crud.repository;
+
+import java.util.List;
+import org.springframework.data.repository.CrudRepository;
+import br.com.belval.crud.model.Produto;
+
+public interface ProdutoRepository extends CrudRepository<Produto, Integer> {
+	
+	  List<Produto> findByDescricao(String descricao);
+
+	  Produto findById(int id);
+}
+
+10 - Em ProdutoController,
+
+10.1 - Adicinar o atributo repository como abaixo
+
+	//private static List<Produto> listaProdutos = new ArrayList<Produto>();
+	//private static int proxId = 1;
+	@Autowired
+	private ProdutoRepository repository;
+
+Atenção: é necessário adicionar os import's de @Autowired e ProdutoRepository
+
+import org.springframework.beans.factory.annotation.Autowired;
+import br.com.belval.crud.repository.ProdutoRepository;	
+	
+10.2 - No método novo(), crie um objeto do tipo ModelAndView e adicione à ele uma nova instancia de Produto. Não esqueça de alterar o tipo de retorno do método de String para ModelAndView.
+
+	@GetMapping("/produto/novo")
+	public ModelAndView novo() {
+		//return "novo-produto";
+		ModelAndView modelAndView = new ModelAndView("novo-produto");
+		modelAndView.addObject("produto", new Produto());
+		return modelAndView;
+	}
+
+10.3 - No método novo(Produto produto, RedirectAttributes redirectAttributes), remova as linhas
+
+		redirectAttributes.addFlashAttribute("msg", "Novo produto criado!");
+		produto.setId(proxId++);
+		listaProdutos.add(produto);
+		
+e adicione a chamada para o método save() de repository
+
+		String msg = "";
+		if (produto.getId() == 0) {
+			msg = "Novo produto criado!";
+		} else {
+			msg = "Produto atualizado!";
+		}
+		redirectAttributes.addFlashAttribute("msg", msg);
+		repository.save(produto);
+	
+o código ficará assim:
+
+	@PostMapping("/produto/novo")
+	public ModelAndView novo(Produto produto, RedirectAttributes redirectAttributes) {
+		ModelAndView modelAndView = new ModelAndView("redirect:/produto/list");
+		String msg = "";
+		//Identifica se é um novo produto sendo criado ou
+		//um produto já existente sendo atualizado
+		if (produto.getId() == 0) {
+			msg = "Novo produto criado!";
+		} else {
+			msg = "Produto atualizado!";
+		}
+		redirectAttributes.addFlashAttribute("msg", msg);
+		repository.save(produto);
+		return modelAndView;
+	}
+
+10.4 - No método list(), substitua "listaProdutos" por "repository.findAll()"
+
+	@GetMapping("/produto/list")
+	public ModelAndView list() {
+		ModelAndView modelAndView = new ModelAndView("lista-produtos");
+		//modelAndView.addObject("produtos", listaProdutos);
+		modelAndView.addObject("produtos", repository.findAll());
+		return modelAndView;
+	}
+
+10.5 - Adicione o método detalhe()
+
+	@GetMapping("/produto/{id}")
+	public String detalhe(@PathVariable("id") int id, Model model) {
+		Produto p = repository.findById(id);
+		if (p == null) {
+			return "produto-nao-encontrado";
+		}
+		model.addAttribute("produto", p);
+		return "detalhe-produto";
+	}
+
+Atenção: é necessário adicionar os import's de @PathVariable e Model
+
+import org.springframework.web.bind.annotation.PathVariable;
+import br.com.belval.crud.repository.ProdutoRepository;	
+
+10.6 - Adicione o método edit()
+
+	@GetMapping("/produto/{id}/edit")
+	public String edit(@PathVariable("id") int id, Model model) {
+		Produto p = repository.findById(id);
+		if (p == null) {
+			return "produto-nao-encontrado";
+		}
+		model.addAttribute("produto", p);
+		return "novo-produto";
+	}
+	
+11 - Na classe Produto,
+
+11.1 - Anotar a classe com @Entity
+
+...
+@Entity
+public class Produto {
+...
+
+Atenção: é necessário adicionar o import de @Entity
+
+import jakarta.persistence.Entity;
+
+11.2 - Anotar o atributo id com as anotações @Id e @GeneratedValue(strategy=GenerationType.AUTO)
+
+...
+	@Id
+	@GeneratedValue(strategy=GenerationType.AUTO)
+	private Integer id;
+	private String nome;
+	private String descricao;
+	private double preco;
+	public Produto() {
+		super();
+	}
+...
+
+Atenção: é imprescindível que as classes que mapeiam tabelas possuem métodos acessores para seus atributos e um construtor padrão, isto é, sem parâmetros.
+
+Além disso, não esqueça de adicionar os import's para @Id, @GeneratedValue e da classe GenerationType
+
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+
+Atenção: dependendo da versão do java que você esteja utilizando, os import's podem ser com outro pacote
+
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+
+
+
